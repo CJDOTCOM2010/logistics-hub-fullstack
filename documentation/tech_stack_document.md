@@ -1,90 +1,160 @@
 # Tech Stack Document
 
-This document explains the key technologies chosen for the **codeguide-starter** project. It’s written in everyday language so anyone—technical or not—can understand why each tool was picked and how it supports the application.
+This document explains, in everyday terms, why we chose each technology for the Logistics Delivery Management Platform. You don’t need a technical background to understand how these pieces fit together and support the system’s goals.
+
+---
 
 ## 1. Frontend Technologies
-The frontend is everything the user sees and interacts with. For this project, we’ve used:
 
-- **Next.js (App Router)**
-  - A React framework that makes page routing, server-side rendering, and API routes very simple.
-  - Enhances user experience by pre-rendering pages on the server or at build time, leading to faster initial load.
-- **React 18**
-  - The underlying library for building user interfaces with reusable components.
-  - Provides a smooth, interactive experience thanks to its virtual DOM and modern hooks.
-- **TypeScript**
-  - A superset of JavaScript that adds types (labels for data).
-  - Helps catch errors early during development and makes the code easier to maintain.
-- **CSS (globals.css & theme.css)**
-  - **globals.css** applies base styles (fonts, colors, resets) across the entire app.
-  - **dashboard/theme.css** defines the look and feel specific to the dashboard area.
-  - This separation keeps styles organized and avoids accidental style conflicts.
+Our frontend (the part users see and interact with) focuses on clarity, responsiveness, and ease of use.
 
-By combining these tools, we have a clear structure (Next.js folders for pages and layouts), safer code (TypeScript), and flexible styling with vanilla CSS.
+- **Laravel Blade Templates**
+  • Server-rendered HTML that integrates directly with Laravel’s routing and data layers.  
+  • Simple to author and keeps initial page loads fast.  
+
+- **Laravel Livewire + Alpine.js**  
+  • Livewire lets us build interactive components (forms, tables, modal dialogs) without writing a lot of JavaScript.  
+  • Alpine.js adds small sprinkles of client-side behavior (show/hide elements, simple interactivity) in a very lightweight way.  
+
+- **Inertia.js with Vue.js or React**  
+  • For pages or modules that need the feel of a single-page app (SPA), Inertia connects Laravel routes directly to Vue or React components.  
+  • This keeps routing and data fetching on the server side, while delivering a smooth, app-like experience in your browser.  
+
+- **Tailwind CSS**  
+  • A utility-first CSS framework that lets us style elements directly in the markup.  
+  • Ensures a consistent look and feel across dashboards, forms, and pages.  
+  • Easy to customize (colors, spacing, typography) through a central configuration.  
+
+- **Socket.IO Client**  
+  • Enables real-time updates (driver location, notifications, chat) directly in the browser.  
+  • Works hand-in-hand with our Node.js real-time service.  
+
+- **Google Maps API or Mapbox GL JS**  
+  • Renders interactive maps for live vehicle tracking and route planning.  
+  • Provides geolocation tools for distance calculations and map overlays.  
+
+---
 
 ## 2. Backend Technologies
-The backend handles data, user accounts, and the logic behind the scenes. Our choices here are:
 
-- **Next.js API Routes**
-  - Allows us to write server-side code (`route.ts` files) alongside our frontend in the same project.
-  - Runs on Node.js, so we can handle requests like sign-up, sign-in, and data fetching in one place.
-- **Node.js Runtime**
-  - The JavaScript environment on the server that executes our API routes.
-- **bcrypt** (npm package)
-  - A library for hashing passwords securely before storing them.
-  - Ensures that even if someone got access to our data, raw passwords aren’t visible.
-- **(Optional) NextAuth.js or JWT**
-  - While this starter kit shows a custom authentication flow, it can easily integrate services like NextAuth.js for email-based login or JWT (JSON Web Tokens) for stateless sessions.
+The backend (the engine powering your application) manages data, enforces rules, and handles core business logic.
 
-These components work together to receive user credentials, verify or store them securely, manage sessions or tokens, and deliver protected data back to the frontend.
+- **Laravel (PHP 8+)**  
+  • A mature, well-documented web framework ideal for building complex applications quickly.  
+  • Offers built-in features for authentication, database migrations, scheduling, and more.  
+
+- **MySQL**  
+  • A reliable, relational database for storing users, shipments, permissions, settings, and audit logs.  
+  • Managed via Laravel’s Eloquent ORM for easy, object-oriented data access.  
+
+- **spatie/laravel-permission**  
+  • A proven package to implement Role-Based Access Control (RBAC).  
+  • Lets the Super Admin define roles (Admin, Driver, Customer, Accountant, etc.) and assign fine-grained permissions per module.  
+
+- **Laravel Sanctum (or Passport)**  
+  • Provides token-based authentication for our RESTful API.  
+  • Secures communications between the web dashboards, mobile apps, and other clients.  
+
+- **Redis**  
+  • Serves as a fast message broker and cache store.  
+  • Carries events from Laravel to our Node.js real-time server (via Pub/Sub) and powers queue workers for background jobs.  
+
+- **Node.js + Socket.IO**  
+  • A separate real-time service that listens for events (driver location updates, new messages).  
+  • Broadcasts updates instantly to connected browsers and mobile clients over WebSockets.  
+
+---
 
 ## 3. Infrastructure and Deployment
-Infrastructure covers where and how we host the app, as well as how changes get delivered:
 
-- **Git & GitHub**
-  - Version control system (Git) and remote hosting (GitHub) keep track of all code changes and allow team collaboration.
-- **Vercel (or Netlify)**
-  - A popular hosting service optimized for Next.js, with one-click deployments and global content delivery.
-  - Automatically rebuilds and deploys the site whenever code is pushed to the main branch.
-- **GitHub Actions (CI/CD)**
-  - Automates tasks like linting (ESLint), formatting (Prettier), and running any tests you add.
-  - Ensures that only clean, tested code goes live.
+These choices keep our system reliable, scalable, and easy to update.
 
-Together, these tools provide a reliable, scalable setup where every code change is tested and deployed quickly, with minimal manual work.
+- **Version Control with Git & GitHub**  
+  • All code is tracked, reviewed, and managed through Git repositories.  
+
+- **CI/CD Pipeline (GitHub Actions)**  
+  • Automates code testing, static analysis (PHPStan, ESLint), and deployment on every merge.  
+  • Ensures bugs are caught early and deployments follow a consistent process.  
+
+- **Containerization (Docker)**  
+  • Encapsulates the Laravel app, Node.js server, database, and Redis into separate containers.  
+  • Guarantees consistent environments across development, staging, and production.  
+
+- **Cloud Hosting (e.g., AWS, DigitalOcean)**  
+  • **RDS** or managed MySQL for reliable database performance.  
+  • **Elasticache** or managed Redis for fast caching and Pub/Sub.  
+  • **S3** for file uploads (documents, assets) with encryption at rest.  
+  • **EC2** / **App Platform** for running web and real-time services.  
+
+- **Process Management**  
+  • **Supervisor** or **PM2** monitors PHP queue workers and Node.js processes, restarting them if they fail.  
+
+---
 
 ## 4. Third-Party Integrations
-While this starter kit is minimal by design, it already includes or can easily add:
 
-- **bcrypt**
-  - For secure password hashing (included as an npm dependency).
-- **NextAuth.js** (optional)
-  - A full-featured authentication library supporting email/password, OAuth, and more.
-- **Sentry or LogRocket** (optional)
-  - For real-time error tracking and performance monitoring in production.
+These services extend functionality without reinventing the wheel.
 
-These integrations help extend the app’s capabilities without building every feature from scratch.
+- **Google Maps API or Mapbox**  
+  • Mapping, geocoding, and route optimization for live tracking and shipment planning.  
+
+- **Email Delivery (Mailgun, SendGrid, or AWS SES)**  
+  • Reliable transactional emails (password resets, notifications, alerts).  
+
+- **SMS/Push Notifications (Twilio or Firebase Cloud Messaging)**  
+  • Optional channels for real-time alerts (driver assignments, status changes).  
+
+- **KYC & Identity Verification (Onfido, AWS Rekognition, or custom)**  
+  • Document upload, facial recognition, and automated checks to verify user identities.  
+
+- **Payment Processor (Stripe, PayPal)**  
+  • If you choose to handle payments or payouts through the platform.  
+  • Simplifies driver/vendor payouts, refunds, and transaction reporting.  
+
+---
 
 ## 5. Security and Performance Considerations
-We’ve baked in several measures to keep users safe and the app running smoothly:
 
-Security:
-- Passwords are never stored in plain text—bcrypt hashes them with a random salt.
-- API routes can implement CSRF protection and input validation to block malicious requests.
-- Session tokens or cookies are marked secure and HttpOnly to prevent theft via JavaScript.
+We follow best practices to protect data and keep the app swift.
 
-Performance:
-- Server-side rendering (SSR) and static site generation (SSG) in Next.js deliver pages faster.
-- Code splitting and lazy-loaded components ensure users only download what they need.
-- Global CSS and theme files are small and cached by the browser for quick repeat visits.
+- **Authentication & Authorization**  
+  • Mandatory Two-Factor Authentication (2FA) and IP whitelisting for Super Admin and high-privilege roles.  
+  • Token-based API access with rate limiting to prevent abuse.  
 
-These strategies work together to give users a fast, secure experience every time.
+- **Data Protection**  
+  • HTTPS everywhere (TLS).  
+  • Encryption of sensitive files at rest (S3 with KMS).  
+  • Database backups and encrypted storage for KYC documents.  
+
+- **Input Validation & Sanitization**  
+  • Laravel’s request validation prevents SQL injection and XSS.  
+  • Strict file upload rules to block malicious content.  
+
+- **Performance Optimizations**  
+  • Query indexing and eager loading in Eloquent to minimize database calls.  
+  • Redis caching for frequently accessed data (settings, permissions, lookup tables).  
+  • Queueing long-running tasks (reports, emails, video processing) to keep the interface responsive.  
+
+- **Monitoring & Logging**  
+  • Centralized logs (CloudWatch, Logentries) for errors and audit trails.  
+  • Application performance monitoring (APM) tools like New Relic or Datadog.  
+
+---
 
 ## 6. Conclusion and Overall Tech Stack Summary
-In building **codeguide-starter**, we chose technologies that:
 
-- Align with modern web standards (Next.js, React, TypeScript).
-- Provide a clear, file-based project structure for rapid onboarding.
-- Offer built-in support for server-side rendering, API routes, and static assets.
-- Emphasize security through password hashing, session management, and safe defaults.
-- Enable easy scaling and future enhancements via modular code and optional integrations.
+We selected each technology to meet your goals of a scalable, secure, and user-friendly logistics platform:
 
-This stack strikes a balance between simplicity for newcomers and flexibility for experienced teams. It accelerates development of a secure authentication flow and a polished dashboard, while leaving room to plug in databases, test suites, and advanced features as the project grows.
+- **Laravel + PHP** for rapid feature development, strong community support, and built-in tools.  
+- **MySQL & Redis** for reliable data storage, caching, and message brokering.  
+- **Node.js + Socket.IO** for real-time tracking, notifications, and chat.  
+- **Blade/Livewire/Alpine & Inertia.js with Vue/React** for a flexible UI that can be both server-rendered and SPA-style.  
+- **Tailwind CSS** for consistent, easy-to-customize styling.  
+- **Cloud infrastructure & CI/CD** for reliable deployments, scaling, and automated quality checks.  
+- **Third-party APIs** (Maps, KYC, Email, SMS) to accelerate development and ensure best-in-class functionality.  
+
+Together, these choices form a modern, modular, and maintainable stack. They empower the Super Admin with full control, deliver real-time capabilities to users, and ensure the system can grow as your business evolves.
+
+---
+
+Thank you for reviewing this Tech Stack Document. If you have any questions or need further clarification, please let us know!

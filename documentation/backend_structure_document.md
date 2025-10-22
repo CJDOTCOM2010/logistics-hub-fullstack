@@ -1,179 +1,256 @@
 # Backend Structure Document
 
-This document outlines the backend architecture, hosting, and infrastructure for the **codeguide-starter** project. It uses plain language so anyone can understand how the backend is set up and how it supports the application.
+This document provides a clear overview of the backend architecture, database management, API design, hosting, infrastructure, security, and maintenance strategies for the Logistics Delivery Management System.
 
 ## 1. Backend Architecture
 
-- **Framework and Design Pattern**
-  - We use **Next.js API Routes** to handle all server-side logic. These routes live alongside the frontend code in the same repository, making development and deployment simpler.
-  - The backend follows a **layered pattern**:
-    1. **API Layer**: Receives requests (login, registration, data fetch).  
-    2. **Service Layer**: Contains the core business logic (user validation, password hashing).  
-    3. **Data Access Layer**: Talks to the database via a simple ORM (e.g., Prisma or TypeORM).
+Overall Structure:
+- The backend is built as a **modular monolith** using **Laravel (PHP)**. Each major feature (Shipments, Users, Accounting, HR) lives in its own module with controllers, services, and models.
+- Real-time features (live tracking, notifications, chat) are handled by a separate **Node.js** service communicating via **Redis**.
 
-- **Scalability**
-  - Stateless API routes can scale horizontally—new instances can spin up on demand.  
-  - We can add caching or a message queue (e.g., Redis or RabbitMQ) without changing the core code.
+Key Design Patterns & Frameworks:
+- **Service-Repository Pattern**: Separates database access (repositories) from business logic (services) for cleaner, testable code.
+- **Eloquent ORM**: Simplifies database interactions in Laravel.
+- **Blade Templates / Inertia.js / Livewire**: Powers the frontend of the Laravel app, allowing dynamic single-page-app behaviors without an entirely separate frontend codebase.
+- **spatie/laravel-permission**: Provides a robust, database-driven role-based access control (RBAC) system.
 
-- **Maintainability**
-  - Code for each feature is grouped by route (authentication, dashboard).  
-  - A service layer separates complex logic from request handling.
-
-- **Performance**
-  - Lightweight Node.js handlers keep response times low.  
-  - Future use of database connection pooling and Redis for caching repeated queries.
+Scalability, Maintainability & Performance:
+- **Modularity** makes it easy to add or remove features.
+- **Database-driven configuration** (settings stored in the database) allows instant, system-wide UI and behavior changes via the Super Admin panel.
+- **Redis** is used for caching and as a message broker to decouple Laravel and Node.js.
+- Background jobs and queues (Laravel Queues with Redis) keep heavy tasks off request threads, improving responsiveness.
 
 ## 2. Database Management
 
-- **Database Choice**
-  - We recommend **PostgreSQL** for structured data and reliable transactions.  
-  - In-memory caching can be added later with **Redis** for session tokens or frequently read data.
+Technologies & Types:
+- Primary data store: **MySQL** (relational).
+- Caching & messaging: **Redis**.
 
-- **Data Storage and Access**
-  - Use an ORM like **Prisma** or **TypeORM** to map JavaScript/TypeScript objects to database tables.
-  - Connection pooling ensures efficient use of database connections under load.
-  - Migrations track schema changes over time, keeping development, staging, and production in sync.
+Data Structure & Access:
+- All core entities (Users, Roles, Permissions, Shipments, Settings) are tables in MySQL, with Eloquent models mapping to them.
+- Redis is used for:
+  - Caching frequent queries (e.g., shipment lookup).
+  - Pub/Sub between Laravel and Node.js for real-time events.
 
-- **Data Practices**
-  - Passwords are never stored in plain text—they are salted and hashed with **bcrypt** before saving.
-  - All outgoing data is typed and validated to prevent malformed records.
+Best Practices:
+- Schema versioning via Laravel **migrations** ensures reproducible changes.
+- **Seeders** and **factories** allow test data generation and consistent staging environments.
+- Regular backups of MySQL and Redis snapshots.
 
 ## 3. Database Schema
 
-### Human-Readable Format
+Human-Readable Table Descriptions:
+- **users**: Stores user accounts (id, name, email, password, role_id, KYC status, timestamps).
+- **roles**: Defines roles (Super Admin, Admin, Driver, Customer, Accountant, HR, Agent).
+- **permissions**: Fine-grained actions (create-shipment, view-report).
+- **role_has_permissions**: Links roles to permissions.
+- **model_has_roles** / **model_has_permissions**: Links users to roles/permissions.
+- **shipments**: Shipment records (id, customer_id, driver_id, pickup_address, delivery_address, status_id, assigned_at, delivered_at, timestamps).
+- **shipment_statuses**: Status definitions (Pending, In Transit, Delivered).
+- **locations**: Geolocation logs (id, shipment_id, latitude, longitude, recorded_at).
+- **notifications**: In-app notifications (id, user_id, type, payload, read_at, timestamps).
+- **messages**: Chat messages (id, sender_id, receiver_id, content, sent_at).
+- **system_settings**: Key-value pairs for global UI or feature toggles.
 
-- **Users**
-  - **id**: Unique identifier  
-  - **email**: User’s email address (unique)  
-  - **password_hash**: Securely hashed password  
-  - **created_at**: Account creation timestamp
-
-- **Sessions**
-  - **id**: Unique session record  
-  - **user_id**: Links to a user  
-  - **token**: Random string for authentication  
-  - **expires_at**: When the token stops working  
-  - **created_at**: When the session was created
-
-- **DashboardItems** *(optional for dynamic data)*
-  - **id**: Unique record  
-  - **title**: Item title  
-  - **content**: Item details  
-  - **created_at**: When the item was added
-
-### SQL Schema (PostgreSQL)
-```sql
--- Users table
+Example MySQL Schema (simplified):
+```
 CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(150) UNIQUE,
+  password VARCHAR(255),
+  kyc_status ENUM('pending','approved','rejected') DEFAULT 'pending',
+  remember_token VARCHAR(100),
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
 );
 
--- Sessions table
-CREATE TABLE sessions (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+CREATE TABLE roles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) UNIQUE,
+  guard_name VARCHAR(50)
 );
 
--- Dashboard items table
-CREATE TABLE dashboard_items (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
+CREATE TABLE permissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) UNIQUE,
+  guard_name VARCHAR(50)
+);
+
+CREATE TABLE role_has_permissions (
+  role_id INT,
+  permission_id INT,
+  PRIMARY KEY(role_id, permission_id)
+);
+
+CREATE TABLE model_has_roles (
+  role_id INT,
+  model_type VARCHAR(50),
+  model_id BIGINT,
+  PRIMARY KEY(role_id, model_type, model_id)
+);
+
+CREATE TABLE shipments (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT,
+  driver_id BIGINT NULL,
+  pickup_address TEXT,
+  delivery_address TEXT,
+  status_id INT,
+  assigned_at TIMESTAMP NULL,
+  delivered_at TIMESTAMP NULL,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+CREATE TABLE shipment_statuses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50)
+);
+
+CREATE TABLE locations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  shipment_id BIGINT,
+  latitude DECIMAL(10,7),
+  longitude DECIMAL(10,7),
+  recorded_at TIMESTAMP
+);
+
+CREATE TABLE notifications (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT,
+  type VARCHAR(50),
+  payload JSON,
+  read_at TIMESTAMP NULL,
+  created_at TIMESTAMP
+);
+
+CREATE TABLE messages (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  sender_id BIGINT,
+  receiver_id BIGINT,
   content TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  sent_at TIMESTAMP
 );
-```  
+
+CREATE TABLE system_settings (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  key VARCHAR(100) UNIQUE,
+  value TEXT,
+  updated_at TIMESTAMP
+);
+```
 
 ## 4. API Design and Endpoints
 
-- **Approach**: We follow a **RESTful** style, grouping related endpoints under `/api` directories.
+Approach:
+- **RESTful**, versioned (e.g., `/api/v1/`).
+- Token-based authentication via **Laravel Sanctum** or **Passport**.
+- Rate limiting and input validation on all endpoints.
 
-- **Key Endpoints**
-  - `POST /api/auth/register`  
-    • Accepts `{ email, password }`  
-    • Creates a new user and issues a session token  
-  - `POST /api/auth/login`  
-    • Accepts `{ email, password }`  
-    • Verifies credentials and returns a session token  
-  - `POST /api/auth/logout`  
-    • Invalidates the session token on the server  
-  - `GET /api/dashboard/data`  
-    • Requires a valid session  
-    • Returns user-specific data or dashboard items  
+Key Endpoints:
+- **Auth & Users**:
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/register`
+  - `GET /api/v1/users` (RBAC-controlled)
+  - `PUT /api/v1/users/{id}`
+- **Roles & Permissions**:
+  - `GET /api/v1/roles`
+  - `POST /api/v1/roles`
+  - `GET /api/v1/permissions`
+- **Shipments**:
+  - `GET /api/v1/shipments`
+  - `POST /api/v1/shipments`
+  - `GET /api/v1/shipments/{id}`
+  - `PUT /api/v1/shipments/{id}`
+- **Tracking & Locations**:
+  - `GET /api/v1/shipments/{id}/locations`
+- **Notifications & Chat**:
+  - `GET /api/v1/notifications`
+  - `POST /api/v1/chat/messages`
+- **Settings & Modules**:
+  - `GET /api/v1/settings`
+  - `PUT /api/v1/settings/{key}`
 
-- **Communication**
-  - Frontend sends JSON requests; backend replies with JSON and appropriate HTTP status codes.  
-  - Protected routes check for a valid session token (in cookies or Authorization header).
+All endpoints return JSON and adhere to consistent success/error structures.
 
 ## 5. Hosting Solutions
 
-- **Cloud Provider**:  
-  - **Vercel** (recommended) offers seamless Next.js deployments, auto-scaling, and built-in CDN.  
-  - Alternatively, **Netlify** or any Node.js-capable host will work.
+Primary Cloud Provider:
+- **AWS** (could be swapped for Azure or GCP). 
 
-- **Benefits**
-  - **Reliability**: Global servers and failover across regions.  
-  - **Scalability**: Auto-scale serverless functions based on traffic.  
-  - **Cost-Effectiveness**: Pay-per-use model means low cost for small projects.
+Components:
+- **EC2 Auto Scaling Group**: Hosts the Laravel app and Node.js service in separate instances or containers.
+- **RDS (MySQL)**: Managed database service with automated backups and multi-AZ setups.
+- **ElastiCache (Redis)**: Managed caching and Pub/Sub.
+- **S3**: Object storage for file uploads (e.g., KYC documents) with lifecycle policies.
+- **CloudFront**: CDN for static assets (JS, CSS, images).
+- **Route 53**: DNS management.
+
+Benefits:
+- High availability via multi-AZ deployments.
+- Automatic scaling under load.
+- Predictable, usage-based costs.
 
 ## 6. Infrastructure Components
 
-- **Load Balancer**
-  - Provided by the hosting platform—distributes API requests across function instances.
+Load Balancing:
+- **AWS Application Load Balancer (ALB)** distributes traffic across multiple Laravel and Node.js instances.
 
-- **CDN (Content Delivery Network)**
-  - Vercel’s global edge network caches static assets (CSS, JS, images) for faster page loads.
+Caching & Queueing:
+- **Redis ElastiCache**:
+  - Caching frequent DB queries.
+  - Pub/Sub for real-time events.
+  - Laravel Queues for background jobs (emails, reports).
 
-- **Caching**
-  - **Redis** (optional) for session storage or caching dashboard queries to reduce database load.
+CDN:
+- **CloudFront** speeds up static asset delivery worldwide.
 
-- **Object Storage**
-  - For file uploads or backups, integrate with AWS S3 or similar services.
-
-- **Message Queue**
-  - In future, use **RabbitMQ** or **Kafka** for background tasks (e.g., email notifications).
+Other Components:
+- **SMTP Service** (e.g., SES, Mailgun) for transactional emails.
+- **SSL/TLS Certificates** via AWS Certificate Manager.
+- **Containerization** (optional) using Docker and ECS/EKS.
 
 ## 7. Security Measures
 
-- **Authentication & Authorization**
-  - Passwords hashed with **bcrypt** and salted.  
-  - Session tokens stored in secure, HttpOnly cookies or Authorization headers.  
-  - Protected endpoints verify tokens before proceeding.
+Authentication & Authorization:
+- **Laravel Sanctum/Passport** for API tokens.
+- **spatie/laravel-permission** for RBAC.
+- Mandatory **2FA** for high-privilege users.
+- **IP whitelisting** for the Super Admin panel.
 
-- **Data Encryption**
-  - **HTTPS/TLS** encrypts data in transit.  
-  - Database connections use SSL to encrypt data between the app and the database.
+Data Protection:
+- **TLS** for all in-transit data.
+- **AES-256 encryption** at rest for KYC documents and sensitive data in S3.
+- Input validation and Eloquent parameter binding guard against SQL injection.
+- CSRF protection on all form submissions.
 
-- **Input Validation**
-  - Every incoming request is validated (e.g., valid email format, password length) to prevent SQL injection or other attacks.
-
-- **Web Security Best Practices**
-  - Enable **CORS** policies to limit allowed origins.  
-  - Use **CSRF tokens** or same-site cookies to prevent cross-site requests.  
-  - Set secure headers with **Helmet** or a similar middleware.
+Audit & Compliance:
+- **Audit logs** of all admin actions.
+- Regular security scans and dependency updates.
+- GDPR-compatible data retention and deletion policies.
 
 ## 8. Monitoring and Maintenance
 
-- **Performance Monitoring**
-  - Integrate **Sentry** or **LogRocket** for real-time crash reporting and performance tracing.  
-  - Use Vercel’s built-in analytics to track request latencies and error rates.
+Monitoring Tools:
+- **AWS CloudWatch** for infrastructure metrics (CPU, memory, latencies).
+- **Laravel Telescope** (debug) and **Sentry/NewRelic** for error tracking and performance monitoring.
+- **Prometheus + Grafana** for custom dashboards (optional).
 
-- **Logging**
-  - Structured logs (JSON) for all API requests and errors, shipped to a log management service like **Datadog** or **Logflare**.
-
-- **Health Checks**
-  - Define a `/health` endpoint that returns a 200 status if the service is up and the database is reachable.
-
-- **Maintenance Strategies**
-  - Automated migrations run on deploy to keep the database schema up to date.  
-  - Scheduled dependency audits and security scans (e.g., `npm audit`).
-  - Regular backups of the database (daily or weekly depending on usage).
+Maintenance Practices:
+- **Automated backups** of RDS and Redis snapshots.
+- **CI/CD Pipeline** (e.g., GitHub Actions) to run tests (PHPUnit, Jest), code analysis (PHPStan), and automated deployments.
+- **Scheduled migrations and seeders** via `artisan migrate --force` in controlled windows.
+- **Updater Module** handles atomic system upgrades, rollbacks, and backup before each release.
 
 ## 9. Conclusion and Overall Backend Summary
 
-The backend for **codeguide-starter** is built on Next.js API Routes and Node.js, paired with PostgreSQL for data and optional Redis for caching. It follows a clear layered architecture that keeps code easy to maintain and extend. With RESTful endpoints for authentication and data, secure practices like password hashing and HTTPS, and hosting on Vercel for scalability and global performance, this setup meets the project’s goals for a fast, secure, and developer-friendly foundation. Future enhancements—such as background job queues, advanced monitoring, or richer data models—can be added without disrupting the core structure.
+This backend is designed for high scalability, maintainability, and security:
+- A **modular monolith** in Laravel keeps the codebase organized.
+- **Node.js** handles real-time workflows in a decoupled service.
+- **MySQL** and **Redis** deliver reliable data storage and fast caching/messaging.
+- A **RESTful API** with versioning ensures future mobile apps can integrate seamlessly.
+- AWS hosting and managed services provide robust availability and cost control.
+- Comprehensive security, monitoring, and maintenance practices safeguard data and system health.
+
+Together, these components form a solid foundation for a full-featured, enterprise-grade Logistics Delivery Management System that is easy to extend, customize, and operate.

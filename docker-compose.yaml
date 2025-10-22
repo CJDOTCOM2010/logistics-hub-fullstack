@@ -1,66 +1,203 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:16-alpine
-    container_name: codeguide-starter-fullstack-postgres
+  # MySQL Database for Laravel
+  mysql:
+    image: mysql:8.0
+    container_name: logistics-hub-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-logistics_hub}
+      MYSQL_USER: ${MYSQL_USER:-logistics_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-logistics_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - codeguide-starter-fullstack-network
+      - logistics-hub-network
 
-  # Next.js Application
-  app:
+  # Laravel Application
+  laravel:
     build:
-      context: .
+      context: ./docker/laravel
       dockerfile: Dockerfile
-    container_name: codeguide-starter-fullstack-app
+    container_name: logistics-hub-laravel
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - BETTER_AUTH_SECRET=your-super-secret-key-change-in-production
-      - BETTER_AUTH_URL=http://localhost:3000
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${MYSQL_DATABASE:-logistics_hub}
+      - DB_USERNAME=${MYSQL_USER:-logistics_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-logistics_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BROADCAST_DRIVER=redis
+      - CACHE_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=file
+      - MAIL_DRIVER=${MAIL_DRIVER:-smtp}
+      - MAIL_HOST=${MAIL_HOST:-mailpit}
+      - MAIL_PORT=${MAIL_PORT:-1025}
+      - MAIL_USERNAME=null
+      - MAIL_PASSWORD=null
+      - MAIL_ENCRYPTION=null
+      - MAIL_FROM_ADDRESS="hello@example.com"
+      - MAIL_FROM_NAME="${APP_NAME:-Logistics Hub}"
     ports:
-      - "3000:3000"
-    depends_on:
-      - postgres
-    networks:
-      - codeguide-starter-fullstack-network
-
-  # Development database only
-  postgres-dev:
-    image: postgres:16-alpine
-    container_name: codeguide-starter-fullstack-postgres-dev
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5433:5432"
+      - "8000:8000"
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      - ./laravel:/var/www/html
+      - ./laravel/storage:/var/www/html/storage
+    depends_on:
+      - mysql
+      - redis
     networks:
-      - codeguide-starter-fullstack-network
-    profiles:
-      - dev
+      - logistics-hub-network
+
+  # Node.js Real-time Service
+  nodejs:
+    build:
+      context: ./docker/nodejs
+      dockerfile: Dockerfile
+    container_name: logistics-hub-nodejs
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LARAVEL_APP_URL=${APP_URL:-http://localhost:8000}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./nodejs:/app
+      - /app/node_modules
+    depends_on:
+      - redis
+    networks:
+      - logistics-hub-network
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: logistics-hub-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - logistics-hub-network
+
+  # Laravel Queue Worker
+  laravel-worker:
+    build:
+      context: ./docker/laravel
+      dockerfile: Dockerfile
+    container_name: logistics-hub-worker
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${MYSQL_DATABASE:-logistics_hub}
+      - DB_USERNAME=${MYSQL_USER:-logistics_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-logistics_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BROADCAST_DRIVER=redis
+      - CACHE_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=file
+    volumes:
+      - ./laravel:/var/www/html
+      - ./laravel/storage:/var/www/html/storage
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - logistics-hub-network
+    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+
+  # Laravel Scheduler
+  laravel-scheduler:
+    build:
+      context: ./docker/laravel
+      dockerfile: Dockerfile
+    container_name: logistics-hub-scheduler
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${MYSQL_DATABASE:-logistics_hub}
+      - DB_USERNAME=${MYSQL_USER:-logistics_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-logistics_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BROADCAST_DRIVER=redis
+      - CACHE_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=file
+    volumes:
+      - ./laravel:/var/www/html
+      - ./laravel/storage:/var/www/html/storage
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - logistics-hub-network
+    command: sh -c "while true; do php artisan schedule:run; sleep 60; done"
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: logistics-hub-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/sites/:/etc/nginx/sites-available/
+      - ./laravel/public:/var/www/laravel/public
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - laravel
+      - nodejs
+    networks:
+      - logistics-hub-network
+
+  # Mailpit for email testing (development)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: logistics-hub-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - logistics-hub-network
 
 volumes:
-  postgres_data:
+  mysql_data:
     driver: local
-  postgres_dev_data:
+  redis_data:
     driver: local
 
 networks:
-  codeguide-starter-fullstack-network:
+  logistics-hub-network:
     driver: bridge

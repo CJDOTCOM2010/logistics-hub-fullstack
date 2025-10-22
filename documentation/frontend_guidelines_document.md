@@ -1,180 +1,126 @@
 # Frontend Guideline Document
 
-This document explains, in simple terms, how the frontend of the `codeguide-starter` project is structured, styled, and built. Anyone—technical or not—can read this and understand which tools are used, how components fit together, and what practices keep the app fast, reliable, and easy to maintain.
-
----
+This document outlines the frontend setup for the Logistics Management Platform. It explains how we build, style, organize, and test the user interface so that everyone—from designers to new developers—can understand and follow the same standards.
 
 ## 1. Frontend Architecture
 
-**Core Frameworks and Libraries**
-- **Next.js (App Router)**: A React-based framework that provides file-based routing, server-side rendering (SSR), static site generation (SSG), and built-in API endpoints all in one project.
-- **React 18**: The library for building user interfaces using components and hooks.
-- **TypeScript**: A superset of JavaScript that adds static types, helping catch errors early and making the code easier to understand and refactor.
+### Overview
+We use **Inertia.js** together with **Vue 3** to create a smooth, single-page experience without leaving the Laravel ecosystem. Behind the scenes, **Vite** bundles our assets, making development fast and production builds lean.
 
-**How It’s Organized**
-- The `app/` folder holds all pages and layouts. Each URL path corresponds to a folder:
-  - `/app/sign-in` and `/app/sign-up` for authentication pages.
-  - `/app/dashboard` for the protected user area.
-  - API routes live under `/app/api/auth/route.ts`.
-- Each route folder contains:
-  - `page.tsx` (the UI for that page)
-  - `layout.tsx` (wrapping structure, like headers or sidebars)
-  - Styles (e.g., `theme.css` in the dashboard).
+### Key Parts
+- **Inertia.js**: Bridges Laravel routes and Vue pages, so each page feels like a traditional server-rendered view but behaves like an SPA (Single-Page Application).
+- **Vue 3**: Our JavaScript framework for building reusable components and handling interactivity.
+- **Vite**: The development server and build tool. It offers lightning-fast hot-module replacement and smart bundling for production.
+- **Tailwind CSS**: A utility-first CSS toolkit for quick, consistent styling without writing large custom stylesheets.
 
-**Why This Works**
-- **Scalability**: Adding new pages or features means creating new folders with their own layouts and pages. You don’t have to touch a central router file.
-- **Maintainability**: Code is separated by feature. Backend logic (API routes) lives alongside the frontend code for that feature, reducing context-switching.
-- **Performance**: Next.js pre-renders pages where possible and splits code by route, so users download only what’s needed.
-
----
+### Why This Architecture?
+- **Scalability**: Splitting UI into small components keeps code organized as the app grows.
+- **Maintainability**: Inertia lets backend and frontend teams work side by side—controllers and pages follow a clear convention.
+- **Performance**: Vite’s modern bundling and Tailwind’s PurgeCSS ensure we ship only what’s needed to the browser.
 
 ## 2. Design Principles
 
-1. **Usability**: Forms give instant feedback. Buttons and links are clearly labeled.
-2. **Accessibility**: Semantic HTML, proper color contrast, and focus outlines ensure people using screen readers or keyboards can navigate easily.
-3. **Responsiveness**: Layouts adapt from mobile (320px) up to large desktop screens. CSS media queries ensure content resizes and stacks neatly.
-4. **Consistency**: Shared global layout and styling mean pages look and feel like part of the same app.
+We follow three main principles when designing user interfaces:
 
-**How We Apply Them**
-- Form fields use `aria-*` attributes and visible labels.
-- Error messages appear inline under inputs.
-- Navigation elements (header, sidebar) appear in every layout.
-- Breakpoints at 480px, 768px, and 1024px guide responsive adjustments.
+1. **Usability**: Interfaces must be intuitive. Buttons, forms, and navigation are clearly labeled and placed where users expect them.
+2. **Accessibility**: We ensure color contrast, keyboard navigation, and proper ARIA attributes so everyone—including people with disabilities—can use the platform.
+3. **Responsiveness**: The layout adapts smoothly to desktops, tablets, and phones. We use mobile-first breakpoints in Tailwind to style components for small screens first, then enhance for larger devices.
 
----
+### How We Apply Them
+- **Clear Labels**: Every form field has a visible label. Error messages appear immediately when input is invalid.
+- **Skip Links & Focus States**: We include a skip-to-main-content link and distinct focus outlines on interactive elements.
+- **Flexible Grids**: Page layouts use Tailwind’s grid or flex utilities to rearrange content based on screen width.
 
 ## 3. Styling and Theming
 
-**Approach**
-- **Global Styles (`globals.css`)**: Resets, base typography, and common utility classes.
-- **Section Styles (`theme.css` in dashboard)**: Styles specific to the dashboard area (colors, layouts).
-- We follow a **BEM-inspired naming** for classes when writing new CSS to avoid conflicts and keep selectors clear.
+### Styling Approach
+- **Utility-First with Tailwind CSS**: We build layouts and components by composing pre-defined utility classes. This reduces custom CSS and keeps styles consistent.
+- **Atomic & BEM-like Naming**: When custom classes are needed, we follow a simplified BEM pattern (`.card`, `.card__header`, `.card--highlight`) to describe blocks, elements, and modifiers.
 
-**Visual Style**: Modern flat design with subtle shadows for depth. Clear spacing and large touch targets on mobile.
+### Theming
+All global colors and font sizes live in `tailwind.config.js`. We can switch themes (for example, light/dark) by toggling a CSS class on the `<html>` element.
 
-**Color Palette**
-- **Primary Blue**: #1E90FF  (buttons, highlights)
-- **Secondary Navy**: #2C3E50  (header, sidebar background)
-- **Accent Cyan**: #00CEC9  (links, hover states)
-- **Neutral Light**: #F8F9FA  (page backgrounds)
-- **Neutral Dark**: #2D3436  (text, icons)
-
-**Font**
-- **Inter** (sans-serif): Clean, modern, highly legible on screens. Fallback to system fonts like `-apple-system, BlinkMacSystemFont, sans-serif`.
-
-**Theming**
-- To keep a consistent look, all colors and font sizes are defined in CSS variables in `globals.css`:
-  ```css
-  :root {
-    --color-primary: #1E90FF;
-    --color-secondary: #2C3E50;
-    --color-accent: #00CEC9;
-    --color-bg: #F8F9FA;
-    --color-text: #2D3436;
-    --font-family: 'Inter', sans-serif;
-  }
-  ```
-- Components consume these variables for backgrounds, borders, and text.
-
----
+### Visual Style
+- Overall feel: **Modern Flat with Subtle Glassmorphism** on cards and modals (slight translucency, soft shadows).
+- **Color Palette**:
+  • Primary: #3B82F6 (blue)  
+  • Secondary: #10B981 (green)  
+  • Accent: #F59E0B (amber)  
+  • Neutral (dark): #1F2937  
+  • Neutral (light): #F3F4F6  
+  • Success: #16A34A  
+  • Warning: #D97706  
+  • Danger: #DC2626
+- **Fonts**: Use **Inter** for body text and **Poppins** for headings. Both are available via Google Fonts.
 
 ## 4. Component Structure
 
-**File Layout**
-- `/app` (top-level folder)
-  - `layout.tsx`: Global wrapper (nav, footer).
-  - `page.tsx`: Landing or redirect logic.
-  - `/sign-in`, `/sign-up`, `/dashboard`, `/api/auth`
-    - Each has its own `layout.tsx` and `page.tsx`.
-- **Common Components**: Put reusable UI pieces (buttons, inputs, cards) into a `/components` folder at the project root.
+### Folder Layout
+```
+resources/
+  js/
+    Components/      # Reusable UI pieces (buttons, inputs, cards)
+      atoms/          # Smallest building blocks (Icon, Badge)
+      molecules/      # Grouped atoms (FormField, NavItem)
+      organisms/      # Larger sections (Navbar, Sidebar)
+    Pages/           # Inertia page components (Dashboard.vue, Shipments.vue)
+    Layouts/         # Common page wrappers (AppLayout.vue)
+    store/           # Pinia state stores
+```
 
-**Reusability & Encapsulation**
-- Components are self-contained: each has its own styles (class names scoped to BEM) and behavior.
-- Shared logic (e.g., API calls) lives in `/lib` or `/hooks` so pages import only what they need.
-
-**Benefits**
-- **Easier Maintenance**: Fix a bug in one button component, and it updates everywhere.
-- **Better Team Collaboration**: Developers can own specific components or pages without stepping on each other’s code.
-
----
+### Why Component-Based?
+- **Reusability**: Write once, use everywhere—buttons and form fields behave consistently.
+- **Isolation**: Each component manages its own logic and styles, reducing unexpected side effects.
+- **Readability**: Smaller files focused on a single piece of UI are easier to understand and test.
 
 ## 5. State Management
 
-**Current Approach**
-- **Local State**: React `useState` and `useEffect` for form values, loading flags, and error messages.
-- **Server State**: Fetch data (e.g., dashboard JSON) directly in page components or using React Server Components.
+### Pinia Store
+We use **Pinia**, Vue’s official state library, to manage shared data (like current user info or cart contents). Pinia stores live in `resources/js/store/`.
 
-**Sharing State**
-- **React Context**: A simple auth context (`AuthContext`) holds the user’s session info, login/logout methods, and makes it available to any component.
-  - Located in `/context/AuthContext.tsx`.
+- **Global Stores**: For data accessed by many components (e.g., user profile, notifications).
+- **Local Stores/Props**: Page-specific data is fetched in page components via Inertia and passed down as props.
 
-**Future Growth**
-- If complexity grows (deeply nested data, multiple user roles), consider:
-  - **Redux Toolkit** or **Zustand** for centralized state.
-  - Query libraries like **React Query** or **SWR** for caching and re-fetch logic.
-
----
+This approach keeps state predictable and easy to debug.
 
 ## 6. Routing and Navigation
 
-**Routing Library**
-- Built into **Next.js App Router**. Each folder under `/app` becomes a route automatically.
-- Layouts (`layout.tsx`) and pages (`page.tsx`) are colocated for that route.
+- **Laravel Routes**: Define URLs in `routes/web.php` and point them to controller actions.
+- **Inertia Links**: Use `<inertia-link>` in Vue templates to navigate. Inertia intercepts clicks and makes XHR requests, replacing only the page content.
+- **Navigation Structure**:
+  • Main menu (Dashboard, Shipments, Drivers, Reports) lives in a Sidebar component.  
+  • Breadcrumbs appear at the top of each page to show location within the app.  
 
-**Protected Pages**
-- The dashboard’s `layout.tsx` checks for a valid session (via cookie or context). If missing, it issues a server-side redirect to `/sign-in`.
-
-**Navigation Structure**
-- **Header**: Present in global layout with the app logo and conditional Sign In/Sign Out links.
-- **Sidebar**: Included in `dashboard/layout.tsx` with links to dashboard sections (expandable in future).
-
----
+Users move between pages seamlessly, with no full-page reloads, thanks to Inertia.
 
 ## 7. Performance Optimization
 
-1. **Code Splitting**: Next.js automatically breaks code by route. Users only load JS needed for the current page.
-2. **Lazy Loading**: For large components (charts, maps), wrap with `next/dynamic` to load them only when needed.
-3. **Image Optimization**: Use Next.js `<Image>` component to serve responsive, compressed images.
-4. **Caching**:
-   - Static assets (CSS, fonts) use long cache headers.
-   - API responses can be cached or ISR (Incremental Static Regeneration) applied.
-5. **Minification & Compression**: Next.js production builds automatically minify JS and CSS, and enable Brotli/Gzip on the CDN.
+- **Lazy Loading**: Large components (like the map view) are loaded on demand with dynamic imports.
+- **Code Splitting**: Vite automatically splits code into smaller chunks so users only download what they need.
+- **Asset Optimization**: Images are compressed, and unused CSS classes are removed in production builds (`purge` in Tailwind).
+- **Caching**: Static assets get hashed filenames, allowing browsers to cache them aggressively.
 
-These steps ensure fast page loads and smooth interactions.
-
----
+These steps reduce initial load times and keep interactions snappy.
 
 ## 8. Testing and Quality Assurance
 
-**Unit Tests**
-- **Jest** + **React Testing Library** for components and utility functions.
-- Example: test that the Sign In form shows an error message when fields are empty.
+- **Unit Tests**: Use **Vue Test Utils** with **Jest** to test individual components in `__tests__/components`.
+- **Integration Tests**: Combine components and stores in Jest to ensure they work together.
+- **End-to-End (E2E) Tests**: Use **Cypress** for critical user flows (login, booking a shipment, tracking). Test specs live in `cypress/integration/`.
+- **Linting & Formatting**:
+  • **ESLint**: Enforce code style and catch common errors.  
+  • **Prettier**: Auto-format code for consistency.  
+  • **Stylelint**: Lint custom CSS if used.
 
-**Integration Tests**
-- Combine multiple components and hooks; test API calls with **msw** (Mock Service Worker).
-
-**End-to-End (E2E) Tests**
-- **Cypress** or **Playwright** to simulate real user flows: signing up, logging in, and viewing the dashboard.
-
-**Linting & Formatting**
-- **ESLint** enforces code style and catches common bugs.
-- **Prettier** applies consistent formatting.
-- **Git Hooks** (via Husky) run linting/tests before each commit.
-
-**Continuous Integration (CI)**
-- **GitHub Actions** runs tests and lint on each pull request, preventing regressions.
-
----
+Running `npm run lint`, `npm run test:unit`, and `npm run test:e2e` should pass in CI before merging any pull request.
 
 ## 9. Conclusion and Overall Frontend Summary
 
-The `codeguide-starter` frontend is built on modern, well-established tools—Next.js, React, and TypeScript—and follows clear principles around usability, accessibility, and maintainability. Its file-based structure, component-driven approach, and CSS-variable theming keep things organized and consistent.
+Our frontend follows a clear, component-driven approach built on Inertia.js, Vue 3, and Tailwind CSS. It balances modern design, performance, and maintainability by:
 
-Key takeaways:
-- **Scalable Structure**: Add new features by creating new folders under `app/` without touching a central router.
-- **Component Reuse**: Shared UI pieces live in one place, making updates quick and error-free.
-- **Simple Styling**: Global and section-specific CSS, underpinned by CSS variables, ensures a unified look.
-- **Smooth Performance**: Next.js automatic optimizations plus best practices like lazy loading and caching.
-- **Quality Assurance**: A testing plan that covers unit, integration, and E2E scenarios, enforced by CI.
+- Separating UI into reusable atoms, molecules, and organisms.
+- Managing shared data with Pinia and routing seamlessly with Inertia.
+- Ensuring consistent styling through a defined color palette, fonts, and a utility-first CSS method.
+- Keeping quality high with unit, integration, and E2E tests.
 
-With these guidelines, any developer coming into the project can understand how the pieces fit together, how to follow existing patterns, and how to keep the app fast, reliable, and easy to grow.
+By following these guidelines, everyone on the team can build new features or update existing ones in a predictable, efficient, and user-friendly way.

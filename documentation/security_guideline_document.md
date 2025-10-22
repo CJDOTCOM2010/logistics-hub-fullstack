@@ -1,116 +1,141 @@
-# Security Guidelines for codeguide-starter
+# Security Guidelines for `logistics-hub-fullstack`
 
-This document defines mandatory security principles and implementation best practices tailored to the **codeguide-starter** repository. It aligns with Security-by-Design, Least Privilege, Defense-in-Depth, and other core security tenets. All sections reference specific areas of the codebase (e.g., `/app/api/auth/route.ts`, CSS files, environment configuration) to ensure practical guidance.
+This document defines the security principles, best practices, and implementation details required to build a robust, secure, and maintainable Logistics Delivery Management Platform using Laravel (PHP), MySQL, and Node.js. It maps directly to the core requirements of the system—from Super Admin controls to real-time features and KYC modules.
 
 ---
 
-## 1. Security by Design
+## 1. Security by Design & Secure Defaults
 
-• Embed security from day one: review threat models whenever adding new features (e.g., new API routes, data fetching).
-• Apply “secure defaults” in Next.js configuration (`next.config.js`), enabling strict mode and disabling debug flags in production builds.
-• Maintain a security checklist in your PR template to confirm that each change has been reviewed against this guideline.
+- Embed security reviews into every phase: design, development, testing, and deployment.  
+- Use secure defaults in all configurations:
+  - Disable debug mode (`APP_DEBUG=false`).  
+  - Enforce TLS 1.2+ (`Force HTTPS` in Laravel middleware).  
+  - Set secure file permissions (`storage/`, `bootstrap/cache/`).
+- Document threat models for each module (authentication, file upload, real-time tracking).
+- Perform design-level code reviews before feature sprints.
 
 ---
 
 ## 2. Authentication & Access Control
 
-### 2.1 Password Storage
-- Use **bcrypt** (or Argon2) with a per-user salt to hash passwords in `/app/api/auth/route.ts`.
-- Enforce a strong password policy on both client and server: minimum 12 characters, mixed case, numbers, and symbols.
+### 2.1 User Authentication
+
+- Use Laravel’s built-in authentication scaffolding with **bcrypt** or **Argon2** hashing.
+- Enforce a strong password policy via validation rules (min 12 characters, mixed case, numbers, symbols).
+- Implement **Multi-Factor Authentication** (MFA) for Super Admin and high-privilege roles using TOTP (e.g., Google Authenticator).
 
 ### 2.2 Session Management
-- Issue sessions via Secure, HttpOnly, SameSite=strict cookies. Do **not** expose tokens to JavaScript.
-- Implement absolute and idle timeouts. For example, invalidate sessions after 30 minutes of inactivity.
-- Protect against session fixation by regenerating session IDs after authentication.
 
-### 2.3 Brute-Force & Rate Limiting
-- Apply rate limiting at the API layer (e.g., using `express-rate-limit` or Next.js middleware) on `/api/auth` to throttle repeated login attempts.
-- Introduce exponential backoff or temporary lockout after N failed attempts.
+- Store sessions in a secure, centralized store (Redis) with strong, unpredictable session IDs.
+- Enforce session timeouts (idle and absolute).  
+- Regenerate session IDs upon login to prevent fixation.
+- Secure cookies:  `HttpOnly`, `Secure`, `SameSite=Strict`.
 
-### 2.4 Role-Based Access Control (Future)
-- Define user roles in your database model (e.g., `role = 'user' | 'admin'`).
-- Enforce server-side authorization checks in every protected route (e.g., in `dashboard/layout.tsx` loader functions).
+### 2.3 Role-Based Access Control (RBAC)
 
----
-
-## 3. Input Handling & Processing
-
-### 3.1 Validate & Sanitize All Inputs
-- On **client** (`sign-up/page.tsx`, `sign-in/page.tsx`): perform basic format checks (email regex, password length).
-- On **server** (`/app/api/auth/route.ts`): re-validate inputs with a schema validator (e.g., `zod`, `Joi`).
-- Reject or sanitize any unexpected fields to prevent injection attacks.
-
-### 3.2 Prevent Injection
-- If you introduce a database later, always use parameterized queries or an ORM (e.g., Prisma) rather than string concatenation.
-- Avoid dynamic `eval()` or template rendering with unsanitized user input.
-
-### 3.3 Safe Redirects
-- When redirecting after login or logout, validate the target against an allow-list to prevent open redirects.
+- Leverage `spatie/laravel-permission` for granular role and permission definitions.
+- Store permissions in the database and expose them in the Super Admin CMS UI.
+- Enforce authorization at the controller and route level (middleware checks) for every endpoint.
+- Audit all permission changes and role assignments in a dedicated log table.
 
 ---
 
-## 4. Data Protection & Privacy
+## 3. API & Service Security
 
-### 4.1 Encryption & Secrets
-- Enforce HTTPS/TLS 1.2+ for all front-end ↔ back-end communications.
-- Never commit secrets—use environment variables and a secrets manager (e.g., AWS Secrets Manager, Vault).
+### 3.1 Transport Security
 
-### 4.2 Sensitive Data Handling
-- Do ​not​ log raw passwords, tokens, or PII in server logs. Mask or redact any user identifiers.
-- If storing PII in `data.json` or a future database, classify it and apply data retention policies.
+- Enforce HTTPS for all web and API traffic (HSTS header).
+- Use strong cipher suites and disable TLS versions < 1.2.
 
----
+### 3.2 Authentication & Rate Limiting
 
-## 5. API & Service Security
+- Use Laravel Sanctum or Passport for token-based API authentication.
+- Validate `exp` claims on all JWTs and reject tokens beyond their expiration.
+- Implement per-user and per-endpoint rate limiting (e.g., 100 requests/minute).
 
-### 5.1 HTTPS Enforcement
-- In production, redirect all HTTP traffic to HTTPS (e.g., via Vercel’s redirect rules or custom middleware).
+### 3.3 Input Validation & Sanitization
 
-### 5.2 CORS
-- Configure `next.config.js` or API middleware to allow **only** your front-end origin (e.g., `https://your-domain.com`).
+- Validate all incoming data with FormRequest objects in Laravel.
+- Use parameterized queries via Eloquent to prevent SQL injection.
+- Sanitize JSON/XML payloads; reject unexpected fields.
+- Validate redirect URLs against a whitelist to avoid open redirect.
 
-### 5.3 API Versioning & Minimal Exposure
-- Version your API routes (e.g., `/api/v1/auth`) to handle future changes without breaking clients.
-- Return only necessary fields in JSON responses; avoid leaking internal server paths or stack traces.
+### 3.4 CORS & CSRF Protection
 
----
-
-## 6. Web Application Security Hygiene
-
-### 6.1 CSRF Protection
-- Use anti-CSRF tokens for any state-changing API calls. Integrate Next.js CSRF middleware or implement synchronizer tokens stored in cookies.
-
-### 6.2 Security Headers
-- In `next.config.js` (or a custom server), add these headers:
-  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
-  - `X-Content-Type-Options: nosniff`
-  - `X-Frame-Options: DENY`
-  - `Referrer-Policy: no-referrer-when-downgrade`
-  - `Content-Security-Policy`: restrict script/style/src to self and trusted CDNs.
-
-### 6.3 Secure Cookies
-- Set `Secure`, `HttpOnly`, `SameSite=Strict` on all cookies. Avoid storing sensitive data in `localStorage`.
-
-### 6.4 Prevent XSS
-- Escape or encode all user-supplied data in React templates. Avoid `dangerouslySetInnerHTML` unless content is sanitized.
+- Configure CORS to allow only trusted origins for API endpoints.
+- Use Laravel’s built-in CSRF middleware for all state-changing web routes.
+- Expose a CSRF token in your Inertia.js or Livewire front end and verify it server-side.
 
 ---
 
-## 7. Infrastructure & Configuration Management
+## 4. Input Handling & File Uploads
 
-- Harden your hosting environment (e.g., Vercel/Netlify) by disabling unnecessary endpoints (GraphQL/GraphiQL playgrounds in production).
-- Rotate secrets and API keys regularly via your secrets manager.
-- Maintain minimal privileges: e.g., database accounts should only have read/write on required tables.
-- Keep Node.js, Next.js, and all system packages up to date.
-
----
-
-## 8. Dependency Management
-
-- Commit and maintain `package-lock.json` to guarantee reproducible builds.
-- Integrate a vulnerability scanner (e.g., GitHub Dependabot, Snyk) to monitor and alert on CVEs in dependencies.
-- Trim unused packages; each added library increases the attack surface.
+- Restrict file types for KYC uploads (PDF, JPG, PNG) and validate MIME types server-side.
+- Enforce maximum file sizes and scan uploads with a virus scanner.
+- Store uploads on AWS S3 (or another object store) with private ACLs, never under the webroot.
+- Generate unique, non-guessable filenames.  
+- Use Laravel’s Filesystem abstraction to prevent path traversal.
 
 ---
 
-Adherence to these guidelines will ensure that **codeguide-starter** remains secure, maintainable, and resilient as it evolves. Regularly review and update this document to reflect new threats and best practices.
+## 5. Data Protection & Encryption
+
+- Encrypt sensitive data at rest with database column encryption (e.g., Laravel’s `encrypt()` helper).
+- Use AWS KMS (or equivalent) for envelope encryption of highly sensitive fields (KYC docs).
+- Ensure all database connections use TLS.
+- Securely manage environment secrets with a vault (AWS Secrets Manager, Vault).
+- Mask PII in logs and truncate sensitive fields in error messages.
+
+---
+
+## 6. Real-Time Services & Messaging Security
+
+- Run the Node.js WebSocket server in a private network or VPC, exposing only the necessary ports.
+- Authenticate WebSocket connections with signed JWTs from Laravel.
+- Use Redis ACLs to restrict channels and commands accessible by the Laravel publisher.
+- Validate every event payload in Node.js before broadcasting to clients.
+- Rate-limit client messages to prevent flooding and abuse.
+
+---
+
+## 7. Infrastructure Hardening & DevOps
+
+- **Server Hardening**: Disable unused services, close non-essential ports, and remove default accounts.
+- **CI/CD Pipeline Security**:  
+  - Run static analysis (PHPStan, Larastan) and dependency scans (Snyk) on every pull request.  
+  - Enforce code style (Laravel Pint) and security tests (PHPUnit + Pest).
+- **Configuration Management**: Store environment configs outside version control; inject via CI/CD.
+- **Secrets Management**: Rotate API keys and database credentials regularly.
+- **Backup & Disaster Recovery**: Automate encrypted backups of databases and uploaded files.
+
+---
+
+## 8. Logging, Monitoring & Incident Response
+
+- Log all authentication attempts, privilege escalations, and administrative actions to a centralized SIEM (e.g., ELK, Datadog).
+- Mask sensitive fields in logs; avoid logging raw passwords or complete JWTs.
+- Implement real-time alerting on suspicious activities (multiple failed logins, privilege changes).
+- Define an incident response plan with roles, communication channels, and post-mortem procedures.
+
+---
+
+## 9. Dependency Management
+
+- Use Composer lockfiles to pin PHP dependencies; run `composer audit` regularly.
+- For Node.js, maintain `package-lock.json` and run `npm audit`/`yarn audit` on each build.
+- Remove or replace unmaintained or vulnerable packages.
+
+---
+
+## 10. Ongoing Security Practices
+
+- Schedule periodic penetration tests (external and internal).
+- Keep Laravel, Node.js, and all libraries up to date with security patches.
+- Conduct threat modeling reviews before major feature launches.
+- Maintain clear documentation of security controls and updates in your Super Admin CMS.
+
+---
+
+By adhering to these guidelines, the `logistics-hub-fullstack` platform will be well-positioned to deliver secure, reliable, and compliant logistics services at enterprise scale.  
+
+*For any uncertainties or security concerns, consult the project’s Security Champion or engage an external security auditor.*
